@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nirnay — multi-agent research desk</title>
+<style>
+  /* Fonts load from Google if the network allows; the stacks below carry the
+     page on their own if it doesn't, so the demo never renders blank. */
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root{
+    --ink:#070F12; --panel:#0E1B21; --panel-2:#132630; --line:#1C3038; --line-soft:#152830;
+    --text:#E3EEF0; --dim:#78949C; --dimmer:#4E6A73;
+    --bull:#3FD3A3; --bear:#FF6A5C; --flat:#E9B44C; --beam:#7D8CF5;
+    --sans:'Space Grotesk', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+    --mono:'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--ink);color:var(--text)}
+  body{font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  button,select,input{font:inherit;color:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:2px solid var(--beam);outline-offset:2px}
+
+  .wrap{max-width:1280px;margin:0 auto;padding:0 22px 60px}
+
+  /* top bar */
+  .topbar{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;justify-content:space-between;
+          padding:26px 0 20px;border-bottom:1px solid var(--line)}
+  .brand h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-0.02em}
+  .brand h1 span{color:var(--dimmer);font-weight:400}
+  .brand p{margin:4px 0 0;color:var(--dim);font-size:13.5px;max-width:46ch}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:11.5px;color:var(--dim)}
+  select,.qbox{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+               padding:9px 11px;min-width:150px;outline:none;color:var(--text)}
+  .run{background:var(--beam);color:#08111c;border:0;border-radius:8px;font-weight:700;
+       padding:11px 20px;letter-spacing:-0.01em;transition:opacity .15s}
+  .run:hover{opacity:.9}
+  .run:disabled{opacity:.5;cursor:progress}
+  .run.ghost{background:none;border:1px solid var(--beam);color:var(--beam);padding:9px 16px}
+  .run.ghost:hover{background:#132630}
+  .switches{display:flex;flex-direction:column;gap:6px}
+  .feed{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);
+        border-radius:8px;padding:7px 11px;font-size:12.5px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--bull);box-shadow:0 0 10px var(--bull);flex:0 0 auto}
+  .dot.off{background:var(--bear);box-shadow:0 0 10px var(--bear)}
+  .feed span{flex:1}
+  .feed button{background:none;border:0;color:var(--dim);text-decoration:underline;padding:0;font-size:12px}
+
+  .banner{margin-top:14px;border:1px solid #5A3B22;background:#231710;border-radius:var(--radius);
+          padding:12px 16px;display:flex;gap:12px;align-items:flex-start}
+  .banner b{color:var(--flat);flex:0 0 auto}
+  .banner p{margin:0;color:#D3BFA4;font-size:13.5px;max-width:88ch}
+
+  /* market strip */
+  .strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(208px,1fr));gap:10px;margin-top:20px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+        padding:12px 13px;text-align:left;width:100%;transition:border-color .15s,background .15s;
+        font:inherit;color:inherit;cursor:pointer}
+  .tile:hover{border-color:#2B4A55}
+  .tile[aria-pressed="true"]{border-color:var(--beam);background:linear-gradient(180deg,#141F33,#0E1B21)}
+  .tile-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .tile-h strong{font-size:14.5px;letter-spacing:-0.01em}
+  .tile-h em{font-style:normal;color:var(--dimmer);font-size:12px}
+  .price{font-size:21px;margin-top:6px;letter-spacing:-0.02em}
+  .chg{font-size:12.5px;margin-left:7px}
+  .up{color:var(--bull)} .down{color:var(--bear)} .mid{color:var(--flat)}
+  .tile-meta{display:flex;flex-wrap:wrap;gap:11px;margin-top:9px;font-size:11.5px;color:var(--dim)}
+  .tile-meta b{color:var(--text);font-weight:500}
+  .spark{margin-top:12px;display:block}
+
+  /* layout */
+  .cols{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:16px;margin-top:16px;align-items:start}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:17px 18px}
+  .card + .card{margin-top:16px}
+  .card h2{margin:0 0 3px;font-size:15.5px;font-weight:600;letter-spacing:-0.01em}
+  .card h2 + p{margin:0 0 14px;color:var(--dim);font-size:12.5px}
+
+  /* pipeline */
+  .pipe{width:100%;height:auto;display:block;margin:2px 0 4px}
+  .lane{stroke-width:1.6;fill:none;opacity:.4}
+  .lane.run{opacity:1;stroke-dasharray:7 7;animation:flow 1s linear infinite}
+  .lane.done{opacity:.9;stroke-dasharray:none}
+  @keyframes flow{to{stroke-dashoffset:-28}}
+  .node{fill:var(--panel-2);stroke:var(--line)}
+  .node.on{stroke:var(--beam)}
+  .plabel{font-size:11.5px;fill:var(--dim);font-family:var(--sans)}
+  .pval{font-size:12.5px;font-family:var(--mono);fill:var(--text)}
+  .pms{font-size:10.5px;fill:var(--dimmer);font-family:var(--mono)}
+
+  /* agents */
+  .agents{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  .agent{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:9px;padding:13px 14px;
+         min-height:164px;display:flex;flex-direction:column;gap:8px}
+  .agent-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .agent-h strong{font-size:13.5px;font-weight:600}
+  .agent-h span{font-size:11px;color:var(--dimmer)}
+  .verdict{font-size:19px;letter-spacing:-0.01em;margin:2px 0 0}
+  .sub{font-size:12.5px;color:var(--dim);margin:0}
+  .bar{height:4px;background:#0A1519;border-radius:99px;overflow:hidden;margin-top:2px}
+  .bar i{display:block;height:100%;border-radius:99px;background:var(--beam)}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
+  .chip{font-size:11px;padding:2.5px 7px;border-radius:5px;background:#0B1A20;
+        border:1px solid var(--line);color:var(--dim)}
+  .chip.pos{color:var(--bull);border-color:#1E4A3D}
+  .chip.neg{color:var(--bear);border-color:#4E2A27}
+  .waiting{color:var(--dimmer);font-size:12.5px}
+
+  .source{border-left:2px solid var(--beam);background:#0B1622;border-radius:0 8px 8px 0;padding:11px 14px;margin-top:12px}
+  .source .cite{font-size:11.5px;color:var(--beam);display:flex;flex-wrap:wrap;gap:10px}
+  .source blockquote{margin:7px 0 0;font-size:13px;color:#C3D6DB;line-height:1.55;max-width:78ch}
+  mark{background:#274B3E;color:#8DF0C6;border-radius:3px;padding:0 2px}
+
+  /* recommendation */
+  .rec-head{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;justify-content:space-between}
+  .action{font-size:29px;font-weight:700;letter-spacing:-0.025em;margin:0}
+  .rec-meta{display:flex;gap:22px}
+  .rec-meta div{text-align:right}
+  .rec-meta small{display:block;color:var(--dim);font-size:11.5px}
+  .rec-meta b{font-size:19px;font-weight:600}
+  .alert{margin-top:12px;border:1px solid #4E2A27;background:#1F1210;border-radius:8px;
+         padding:10px 13px;font-size:13px;color:#F0BDB6}
+  .alert b{color:var(--bear)}
+  .weights{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .w{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px}
+  .w small{color:var(--dim);font-size:11.5px;display:block}
+  .w b{font-size:15px;font-weight:600}
+  .w .contrib{font-size:12px;margin-top:2px;color:var(--dim)}
+  .chain{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid var(--line)}
+  .chain li{display:flex;gap:13px;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+  .chain li:last-child{border-bottom:0}
+  .chain .idx{flex:0 0 22px;height:22px;border-radius:6px;background:#0B1622;border:1px solid var(--line);
+              display:grid;place-items:center;font-size:11px;color:var(--beam);font-family:var(--mono)}
+  .chain p{margin:0;font-size:13.5px;max-width:82ch}
+  .chain em{font-style:normal;color:var(--dim);font-size:12px;display:block;margin-top:2px}
+
+  /* side */
+  .metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .metric{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:11px 12px}
+  .metric small{display:block;color:var(--dim);font-size:11px;line-height:1.35;min-height:29px}
+  .metric b{font-size:20px;font-weight:600;letter-spacing:-0.02em}
+  .metric i{font-style:normal;font-size:11.5px;color:var(--dimmer)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:12px}
+  th{text-align:left;color:var(--dim);font-weight:400;font-size:11.5px;padding:0 0 7px;border-bottom:1px solid var(--line)}
+  td{padding:8px 0;border-bottom:1px solid var(--line-soft)}
+  td:last-child,th:last-child{text-align:right}
+  tr:last-child td{border-bottom:0}
+  tbody tr.pick{cursor:pointer;transition:background .15s}
+  tbody tr.pick:hover td{background:#132630}
+  .wl{display:flex;justify-content:space-between;align-items:center;padding:9px 0;
+      border-bottom:1px solid var(--line-soft);font-size:13px}
+  .wl:last-child{border-bottom:0}
+  .badge{font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid var(--line);color:var(--dim)}
+  .badge.b{color:var(--bull);border-color:#1E4A3D;background:#0C201A}
+  .badge.s{color:var(--bear);border-color:#4E2A27;background:#1F1210}
+  .badge.n{color:var(--flat);border-color:#4A3B1C;background:#1E1809}
+
+  .notes{margin-top:26px;border-top:1px solid var(--line);padding-top:22px}
+  .notes h2{font-size:19px;margin:0 0 14px;letter-spacing:-0.02em}
+  .ncols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+  .notes h3{font-size:13.5px;margin:0 0 6px}
+  .notes p,.notes li{font-size:13.5px;color:#B6CBD1;max-width:74ch}
+  .notes p{margin:0 0 12px}
+  .notes ul{margin:0 0 12px;padding-left:18px}
+  .notes li{margin-bottom:5px}
+  .notes code{font-family:var(--mono);font-size:12px;color:var(--beam)}
+  .disclaimer{margin-top:18px;color:var(--dimmer);font-size:12px;max-width:88ch}
+
+  @media (max-width:960px){
+    .cols,.strip,.agents,.ncols,.weights{grid-template-columns:1fr}
+    .metrics{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .lane.run{animation:none;stroke-dasharray:none}
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <div class="brand">
+      <h1>Nirnay <span>desk</span></h1>
+      <p>Multi-agent equity research and risk-weighted synthesis for Indian markets.</p>
+    </div>
+    <div class="controls">
+      <div class="field">
+        <label for="symbol">Ticker</label>
+        <select id="symbol"></select>
+      </div>
+      <div class="field">
+        <label for="profile">Risk profile</label>
+        <select id="profile"></select>
+      </div>
+      <div class="field">
+        <label for="query">Filing search</label>
+        <input class="qbox" id="query" value="revenue growth and operating margin outlook" placeholder="e.g. margin guidance order book" />
+      </div>
+      <button class="run" id="btnRun">Run analysis</button>
+      <button class="run ghost" id="btnScan">Scan universe</button>
+      <div class="switches">
+        <div class="feed">
+          <div class="dot" id="dotFeed"></div>
+          <span id="lblFeed">Price feed live</span>
+          <button id="btnFeed">Disconnect</button>
+        </div>
+        <div class="feed">
+          <div class="dot" id="dotFil"></div>
+          <span id="lblFil">Filing corpus online</span>
+          <button id="btnFil">Take offline</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="banner"></div>
+  <div class="strip" id="strip"></div>
+
+  <div class="cols">
+    <div>
+      <div class="card">
+        <h2>Research pipeline</h2>
+        <p id="pipeSub"></p>
+        <div id="pipe"></div>
+        <div class="agents" id="agents"></div>
+        <div id="source"></div>
+      </div>
+      <div id="synth"></div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Session metrics</h2>
+        <p>Measured on this session, not estimated.</p>
+        <div class="metrics" id="metrics"></div>
+        <div id="metricNote" style="margin-top:12px;font-size:12px;color:var(--dimmer);max-width:60ch"></div>
+      </div>
+      <div class="card">
+        <h2>Holdings</h2>
+        <p>Marked to the current tape. Pick a row to research it.</p>
+        <div class="metrics" id="pmetrics"></div>
+        <table id="ptable"></table>
+      </div>
+      <div id="scan"></div>
+      <div id="logCard"></div>
+    </div>
+  </div>
+
+  <footer class="notes">
+    <h2>Architecture and decision logic</h2>
+    <div class="ncols">
+      <div>
+        <h3>How the three agents combine</h3>
+        <p>Three agents score the same stock independently and in parallel, each returning a signed score on a −100 to +100 scale plus its own confidence. A synthesis layer blends them with a deterministic risk-weighted linear model — no agent can act alone.</p>
+        <ul>
+          <li><code>MomentumAgent</code> — day move, volume against its own average, and six-session slope.</li>
+          <li><code>SentimentAgent</code> — financial lexicon scan over headlines, scored for both mean tone and disagreement between headlines.</li>
+          <li><code>FilingsAgent</code> — lexical TF-IDF retrieval over the filing corpus, hard-partitioned by issuer so a rival's filing can never be cited as this company's.</li>
+        </ul>
+        <p>Each profile carries its own weights, action gates, conviction floor, and position cap. Weights are then tilted by the confidence each agent reported, so a hesitant agent moves the composite less than a certain one, and renormalised back to 1.</p>
+      </div>
+      <div>
+        <h3>What happens when something breaks</h3>
+        <ul>
+          <li><b>Price feed down</b> — momentum is dropped, its weight moves to the surviving agents, and conviction is cut 25%.</li>
+          <li><b>Filing missing or no relevant match</b> — the fundamental leg is dropped rather than answered from a weak match, and conviction is cut 15%.</li>
+          <li><b>Agents disagree</b> — when the active agents point in opposite directions, the conflict is stated on screen and conviction is cut 15% more.</li>
+          <li><b>Thin evidence</b> — every profile has a conviction floor. Below it the call is to stand aside, on both the buy and the sell side.</li>
+        </ul>
+        <p>Retrieval here is lexical TF-IDF, not embeddings. It runs with no network and no key, which is why it is used for the demo; the retrieval call is isolated behind one function so an embedding index would drop into the same interface.</p>
+        <p class="disclaimer">All prices, filings, headlines and forward returns in this build are synthetic and held in memory. Nothing here is investment advice, and the output is a research simulation rather than a recommendation to buy or sell any security.</p>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   1. MARKET DATA (synthetic)
+   fwd30 is a synthetic 30-day forward return, used only to
+   score past calls in the session metrics panel.
+   ============================================================ */
+const MARKET = [
+  { symbol:'INFY', name:'Infosys', sector:'IT services', price:1587.40, prevClose:1552.10,
+    volume:9420000, avgVolume:6100000, fwd30:6.2,
+    trend:[1498.0,1511.5,1504.8,1533.6,1552.1,1587.4],
+    headlines:[
+      'Infosys beats Q2 estimates as large-deal wins hit a record USD 4.1 bn',
+      'Brokerage upgrades Infosys on stronger BFSI demand and margin expansion',
+      'Infosys raises FY guidance; management flags a healthy deal pipeline',
+      'Attrition edges up slightly, a mild drag on delivery costs'] },
+  { symbol:'TCS', name:'Tata Consultancy Services', sector:'IT services', price:3142.60, prevClose:3178.90,
+    volume:3120000, avgVolume:2800000, fwd30:-1.4,
+    trend:[3241.0,3216.5,3199.2,3188.4,3178.9,3142.6],
+    headlines:[
+      'TCS slips as discretionary spend in retail stays weak',
+      'Analysts cut TCS target price after a soft quarter in Europe',
+      'TCS wins a multi-year order from a North American insurer',
+      'Deal pipeline described as steady, with no change to hiring plans'] },
+  { symbol:'HDFCBANK', name:'HDFC Bank', sector:'Private banks', price:1634.85, prevClose:1629.90,
+    volume:5100000, avgVolume:5600000, fwd30:2.1,
+    trend:[1612.0,1625.4,1618.7,1631.2,1629.9,1634.85],
+    headlines:[
+      'HDFC Bank holds net interest margin steady at 3.46% in Q2',
+      'Deposit growth stays strong; asset quality broadly stable',
+      'RBI approval received for the expanded branch rollout plan',
+      'Credit cost guidance unchanged, says management on the call'] },
+  { symbol:'ICICIBANK', name:'ICICI Bank', sector:'Private banks', price:1288.40, prevClose:1259.75,
+    volume:12400000, avgVolume:9800000, fwd30:7.8,
+    trend:[1214.5,1229.8,1241.2,1252.6,1259.75,1288.4],
+    headlines:[
+      'ICICI Bank beats estimates on strong retail loan growth',
+      'Brokerages upgrade the stock after a record quarterly profit',
+      'Asset quality stable; provision coverage stays healthy',
+      'Board approves branch expansion across semi-urban markets'] },
+  { symbol:'RELIANCE', name:'Reliance Industries', sector:'Energy and retail', price:1402.30, prevClose:1421.60,
+    volume:11800000, avgVolume:10200000, fwd30:-3.6,
+    trend:[1468.2,1451.0,1439.5,1428.8,1421.6,1402.3],
+    headlines:[
+      'Reliance declines as refining margins weaken through the quarter',
+      'Retail arm posts strong footfall growth in the festive period',
+      'Telecom subscriber additions steady; ARPU broadly unchanged',
+      'Analysts cut near-term estimates on the energy segment'] },
+  { symbol:'TATAMOTORS', name:'Tata Motors', sector:'Automobiles', price:762.15, prevClose:801.30,
+    volume:23800000, avgVolume:14200000, fwd30:-9.1,
+    trend:[843.2,829.6,812.4,806.9,801.3,762.15],
+    headlines:[
+      'Tata Motors slips as JLR flags a delay in the EV platform ramp',
+      'Domestic PV volumes decline for a second month on weak demand',
+      'Analysts cut target price after a margin miss in the CV segment',
+      'Company wins a fleet order for 1,200 electric buses'] },
+  { symbol:'MARUTI', name:'Maruti Suzuki', sector:'Automobiles', price:12840.50, prevClose:12610.20,
+    volume:920000, avgVolume:700000, fwd30:5.4,
+    trend:[12180.0,12305.5,12412.0,12558.4,12610.2,12840.5],
+    headlines:[
+      'Maruti beats volume estimates on a record festive season',
+      'Brokerage upgrades the stock on strong SUV mix and margin expansion',
+      'Export growth stays healthy across African and Latin American markets',
+      'Management raises full-year volume guidance'] },
+  { symbol:'LT', name:'Larsen and Toubro', sector:'Capital goods', price:3596.70, prevClose:3524.10,
+    volume:2400000, avgVolume:1900000, fwd30:4.9,
+    trend:[3402.0,3438.6,3471.2,3509.8,3524.1,3596.7],
+    headlines:[
+      'L&T wins a record order for a Middle East infrastructure package',
+      'Order book growth stays strong across the hydrocarbon segment',
+      'Execution steady; management retains full-year revenue guidance',
+      'Analysts upgrade on improving working capital'] },
+  { symbol:'SUNPHARMA', name:'Sun Pharmaceutical', sector:'Pharmaceuticals', price:1712.35, prevClose:1735.80,
+    volume:2200000, avgVolume:2600000, fwd30:-2.2,
+    trend:[1798.4,1781.2,1764.5,1748.0,1735.8,1712.35],
+    headlines:[
+      'Sun Pharma slips after the USFDA probe into a Gujarat facility',
+      'Company issues a voluntary recall of one generic batch',
+      'Analysts downgrade on weak specialty ramp in the US market',
+      'Domestic formulations growth stays steady'] },
+  { symbol:'ITC', name:'ITC', sector:'FMCG', price:412.85, prevClose:409.20,
+    volume:15600000, avgVolume:14100000, fwd30:1.3,
+    trend:[406.1,410.4,407.8,411.6,409.2,412.85],
+    headlines:[
+      'ITC posts strong volume growth in the cigarettes segment',
+      'Hotels business wins an award for a record occupancy quarter',
+      'Paperboards margin remains under pressure on input costs',
+      'Management calls demand recovery healthy but uneven'] },
+  { symbol:'TATASTEEL', name:'Tata Steel', sector:'Metals', price:148.20, prevClose:156.45,
+    volume:48200000, avgVolume:31500000, fwd30:-6.8,
+    trend:[172.4,167.8,163.2,159.6,156.45,148.2],
+    headlines:[
+      'Tata Steel slumps as European operations post a wider loss',
+      'Analysts downgrade on weak realisations and a demand decline',
+      'Company flags a delay in the Netherlands restructuring plan',
+      'Domestic volumes decline on a soft construction season'] },
+  { symbol:'TITAN', name:'Titan Company', sector:'Consumer discretionary', price:3284.90, prevClose:3196.40,
+    volume:1600000, avgVolume:1200000, fwd30:3.1,
+    trend:[3042.0,3088.5,3126.2,3174.8,3196.4,3284.9],
+    headlines:[
+      'Titan beats estimates on record jewellery sales during the festive quarter',
+      'Watches segment posts strong growth; brokerages upgrade the stock',
+      'Store expansion continues across tier-two cities',
+      'Management raises the full-year revenue growth outlook'] }
+];
+
+const SNAPSHOT_TIME = '14:22 IST';
+
+/* ============================================================
+   2. FILING CORPUS (synthetic disclosures)
+   ============================================================ */
+const FILINGS = [
+  { id:'F-101', symbol:'INFY', type:'Quarterly financial results (LODR Reg. 33)', date:'12 Oct 2025', venue:'BSE · Filing 5401-INFY', tone:+0.72,
+    text:'Consolidated revenue for the quarter rose 8.4% year on year to INR 40,986 crore, with constant-currency growth of 6.1%. Operating margin expanded 90 basis points to 21.3% on better utilisation and lower subcontractor cost. Large-deal total contract value stood at USD 4.1 billion. The board revised full-year revenue growth guidance upward to a range of 4.5% to 5.5%.' },
+  { id:'F-102', symbol:'INFY', type:'Disclosure of material events (LODR Reg. 30)', date:'02 Oct 2025', venue:'NSE · Filing 5388-INFY', tone:+0.30,
+    text:'The company has signed a multi-year managed services agreement with a European banking client. Voluntary attrition on a trailing twelve-month basis was 13.1% against 12.6% in the previous quarter, and the company continues to invest in reskilling to contain delivery cost pressure.' },
+  { id:'F-111', symbol:'TCS', type:'Quarterly financial results (LODR Reg. 33)', date:'11 Oct 2025', venue:'BSE · Filing 5322-TCS', tone:+0.18,
+    text:'Revenue grew 4.1% year on year to INR 64,259 crore, with constant-currency growth of 2.2%. Operating margin held at 24.3% as currency gains offset wage revision. Management noted that discretionary spending in the retail and manufacturing verticals remains subdued, while the order book stood at USD 8.6 billion.' },
+  { id:'F-112', symbol:'TCS', type:'Disclosure of material events (LODR Reg. 30)', date:'29 Sep 2025', venue:'NSE · Filing 5310-TCS', tone:+0.26,
+    text:'The company has been selected for a multi-year technology transformation programme by a North American insurance group. Headcount was broadly flat during the quarter and the company reiterated that hiring plans for the financial year remain unchanged.' },
+  { id:'F-121', symbol:'HDFCBANK', type:'Quarterly financial results (LODR Reg. 33)', date:'14 Oct 2025', venue:'BSE · Filing 3120-HDB', tone:+0.44,
+    text:'Net interest income grew 9.1% year on year while net interest margin held at 3.46%. Gross non-performing assets were steady at 1.24% of gross advances and the provision coverage ratio stood at 71%. Deposit growth of 15.3% outpaced advances growth, improving the funding profile.' },
+  { id:'F-122', symbol:'HDFCBANK', type:'Regulatory approval intimation (LODR Reg. 30)', date:'21 Sep 2025', venue:'NSE · Filing 3094-HDB', tone:+0.18,
+    text:'The bank has received regulatory approval for its branch expansion plan covering 480 semi-urban and rural locations. Credit cost guidance for the financial year is retained at 55 to 60 basis points of average advances, with no change to the stated risk appetite.' },
+  { id:'F-131', symbol:'ICICIBANK', type:'Quarterly financial results (LODR Reg. 33)', date:'15 Oct 2025', venue:'BSE · Filing 3240-ICI', tone:+0.66,
+    text:'Net interest income rose 12.4% year on year and net interest margin improved 8 basis points to 4.36%. Retail advances growth of 18.2% led the loan book, and profit after tax reached a record INR 11,746 crore. Gross non-performing assets declined to 1.97% with provision coverage at 79%.' },
+  { id:'F-132', symbol:'ICICIBANK', type:'Disclosure of material events (LODR Reg. 30)', date:'25 Sep 2025', venue:'NSE · Filing 3228-ICI', tone:+0.24,
+    text:'The board has approved the opening of 320 additional branches, weighted towards semi-urban locations. The bank stated that its credit cost outlook and underwriting standards for unsecured retail lending remain unchanged from the previous quarter.' },
+  { id:'F-141', symbol:'RELIANCE', type:'Quarterly financial results (LODR Reg. 33)', date:'18 Oct 2025', venue:'BSE · Filing 5000-RIL', tone:+0.20,
+    text:'Consolidated revenue grew 6.8% year on year to INR 2,58,027 crore. Retail segment revenue rose 17.4% with strong festive footfall, and digital services added 7.4 million subscribers. Refining margins weakened during the quarter, and the oil-to-chemicals segment reported a 9.2% decline in EBITDA.' },
+  { id:'F-142', symbol:'RELIANCE', type:'Disclosure of material events (LODR Reg. 30)', date:'30 Sep 2025', venue:'NSE · Filing 4988-RIL', tone:+0.34,
+    text:'The company has commissioned the second phase of its renewable energy manufacturing facility in Jamnagar. Capital expenditure for the financial year is retained at the previously stated range, with no change to the funding plan for the new energy business.' },
+  { id:'F-151', symbol:'TATAMOTORS', type:'Quarterly financial results (LODR Reg. 33)', date:'10 Oct 2025', venue:'BSE · Filing 7712-TTM', tone:-0.58,
+    text:'Consolidated revenue declined 3.2% year on year to INR 1,04,120 crore. EBITDA margin contracted 140 basis points to 11.4% as commercial vehicle realisations weakened and warranty provisioning rose. The company recorded an exceptional charge of INR 610 crore relating to a product recall in the passenger vehicle segment.' },
+  { id:'F-152', symbol:'TATAMOTORS', type:'Disclosure of material events (LODR Reg. 30)', date:'27 Sep 2025', venue:'NSE · Filing 7690-TTM', tone:+0.22,
+    text:'The subsidiary has received a state transport order for 1,200 electric buses to be delivered over eighteen months. Separately, capital expenditure for the electric vehicle platform has been rescheduled into the next financial year, deferring roughly INR 2,400 crore of planned outlay.' },
+  { id:'F-161', symbol:'MARUTI', type:'Quarterly financial results (LODR Reg. 33)', date:'16 Oct 2025', venue:'BSE · Filing 6620-MSIL', tone:+0.62,
+    text:'Revenue grew 14.6% year on year to INR 41,382 crore on record festive dispatches. Operating margin expanded 120 basis points to 12.1%, helped by a richer utility vehicle mix and softer commodity costs. Exports rose 21.3% and the company revised its full-year volume growth guidance upward.' },
+  { id:'F-162', symbol:'MARUTI', type:'Disclosure of material events (LODR Reg. 30)', date:'23 Sep 2025', venue:'NSE · Filing 6604-MSIL', tone:+0.28,
+    text:'The company has received environmental approval for capacity expansion at its Kharkhoda facility. Production of the new hybrid powertrain is scheduled to begin in the fourth quarter, and no change has been made to the stated capital expenditure plan.' },
+  { id:'F-171', symbol:'LT', type:'Quarterly financial results (LODR Reg. 33)', date:'17 Oct 2025', venue:'BSE · Filing 4410-LT', tone:+0.68,
+    text:'Revenue grew 15.2% year on year to INR 61,555 crore, and order inflow reached a record INR 89,300 crore for the quarter. The consolidated order book stands at INR 5,10,000 crore with the hydrocarbon segment contributing the largest share of new wins. Working capital improved to 12.4% of sales.' },
+  { id:'F-172', symbol:'LT', type:'Disclosure of material events (LODR Reg. 30)', date:'26 Sep 2025', venue:'NSE · Filing 4396-LT', tone:+0.40,
+    text:'The company has secured an infrastructure package in the Middle East valued between INR 15,000 crore and INR 20,000 crore. Execution is scheduled over thirty months and full-year revenue growth guidance remains unchanged.' },
+  { id:'F-181', symbol:'SUNPHARMA', type:'Quarterly financial results (LODR Reg. 33)', date:'13 Oct 2025', venue:'BSE · Filing 5240-SUN', tone:-0.46,
+    text:'Revenue rose 3.1% year on year to INR 13,262 crore, below the growth recorded in the previous quarter. Operating margin contracted 210 basis points to 25.4% as the specialty portfolio ramp in the United States slowed and remediation spending increased. A provision of INR 340 crore has been recognised in connection with an ongoing litigation matter.' },
+  { id:'F-182', symbol:'SUNPHARMA', type:'Disclosure of material events (LODR Reg. 30)', date:'28 Sep 2025', venue:'NSE · Filing 5226-SUN', tone:-0.52,
+    text:'The company has received observations following a regulatory inspection of its Gujarat manufacturing facility and has initiated a voluntary recall of one generic batch. Management stated that the financial impact is not expected to be material but that remediation timelines remain under review.' },
+  { id:'F-191', symbol:'ITC', type:'Quarterly financial results (LODR Reg. 33)', date:'19 Oct 2025', venue:'BSE · Filing 2800-ITC', tone:-0.34,
+    text:'Gross revenue grew 5.2% year on year to INR 18,506 crore. Cigarettes volume growth stayed in the mid single digits, but the paperboards segment reported a 260 basis point margin contraction on higher input costs and weak export realisations. Agri business revenue declined 8.1% on trade restrictions.' },
+  { id:'F-192', symbol:'ITC', type:'Disclosure of material events (LODR Reg. 30)', date:'24 Sep 2025', venue:'NSE · Filing 2788-ITC', tone:+0.30,
+    text:'The hotels business recorded its highest quarterly occupancy since demerger, and three new properties have been added to the portfolio. The company stated that its capital allocation policy and dividend payout range remain unchanged.' },
+  { id:'F-201', symbol:'TATASTEEL', type:'Quarterly financial results (LODR Reg. 33)', date:'20 Oct 2025', venue:'BSE · Filing 6100-TSL', tone:-0.74,
+    text:'Consolidated revenue declined 9.4% year on year to INR 51,822 crore. The European operations reported a wider loss as realisations fell and energy costs stayed elevated, and consolidated EBITDA margin contracted 320 basis points to 8.2%. Net debt rose to INR 88,400 crore during the quarter.' },
+  { id:'F-202', symbol:'TATASTEEL', type:'Disclosure of material events (LODR Reg. 30)', date:'22 Sep 2025', venue:'NSE · Filing 6086-TSL', tone:-0.44,
+    text:'The restructuring of the Netherlands operations has been rescheduled, and the associated cash outflow is now expected in the next financial year. The company continues to evaluate options for the loss-making European portfolio and has deferred a portion of planned capital expenditure.' },
+  { id:'F-211', symbol:'TITAN', type:'Quarterly financial results (LODR Reg. 33)', date:'21 Oct 2025', venue:'BSE · Filing 3900-TTN', tone:+0.70,
+    text:'Revenue grew 22.8% year on year to INR 15,043 crore on record jewellery sales during the festive quarter. Operating margin expanded 70 basis points to 11.9% despite elevated gold prices, and the watches segment grew 18.4%. The company raised its full-year revenue growth outlook.' },
+  { id:'F-212', symbol:'TITAN', type:'Disclosure of material events (LODR Reg. 30)', date:'20 Sep 2025', venue:'NSE · Filing 3886-TTN', tone:+0.32,
+    text:'The company added 74 net new stores during the quarter, weighted towards tier-two cities. Store expansion plans and the capital expenditure range for the financial year remain unchanged from the previous disclosure.' }
+];
+
+/* ============================================================
+   3. AGENTS
+   ============================================================ */
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* --- 3A. Momentum: price, volume, multi-session slope --- */
+function momentumAgent(stock, feedLive){
+  if(!feedLive){
+    return { ok:false, name:'Momentum', signal:'Unavailable', score:0, confidence:0,
+      reason:'Price and volume feed is disconnected. There is no tape to score, so this agent returns nothing rather than guessing.',
+      evidence:[{t:'feed disconnected', pos:false}] };
+  }
+  const chgPct = ((stock.price - stock.prevClose) / stock.prevClose) * 100;
+  const volRatio = stock.volume / stock.avgVolume;
+  const t = stock.trend;
+  const slopePct = ((t[t.length-1] - t[0]) / t[0]) * 100;
+
+  const pxPart    = clamp(chgPct * 9, -42, 42);
+  const volPart   = clamp((volRatio - 1) * 38, -24, 24) * (chgPct >= 0 ? 1 : -1);
+  const trendPart = clamp(slopePct * 3.2, -32, 32);
+
+  const score = clamp(pxPart + volPart + trendPart, -100, 100);
+  const parts = [pxPart, volPart, trendPart];
+  const agree = parts.filter(p => Math.sign(p) === Math.sign(score)).length / 3;
+  const confidence = Math.round(clamp(44 + Math.abs(score)*0.42 + agree*18, 20, 95));
+
+  return {
+    ok:true, name:'Momentum',
+    signal: score > 18 ? 'Bullish' : score < -18 ? 'Bearish' : 'Neutral',
+    score: Math.round(score), confidence,
+    reason: `${chgPct>=0?'+':''}${chgPct.toFixed(2)}% today on ${volRatio.toFixed(2)}x its average volume, and ${slopePct>=0?'up':'down'} ${Math.abs(slopePct).toFixed(1)}% across six sessions.`,
+    evidence:[
+      {t:`move ${chgPct>=0?'+':''}${chgPct.toFixed(2)}%`, pos: chgPct>=0},
+      {t:`volume ${volRatio.toFixed(2)}x`, pos: volRatio>=1},
+      {t:`6-session ${slopePct>=0?'+':''}${slopePct.toFixed(1)}%`, pos: slopePct>=0}
+    ]
+  };
+}
+
+/* --- 3B. Sentiment: lexicon scan with dispersion penalty --- */
+const LEXICON = {
+  beats:2.2, beat:2.2, record:2.0, upgrade:2.0, upgrades:2.0, surge:2.4, strong:1.6,
+  raises:1.8, expansion:1.6, growth:1.5, approval:1.5, wins:1.5, win:1.5, healthy:1.4,
+  steady:1.0, stable:1.0, unchanged:0.6, order:1.2, profit:1.6,
+  slips:-2.0, slip:-2.0, delay:-1.8, decline:-1.8, declines:-1.8, weak:-1.9, cut:-1.6,
+  cuts:-1.6, miss:-2.2, recall:-2.4, probe:-2.4, downgrade:-2.0, drag:-1.2,
+  attrition:-1.0, slump:-2.4, slumps:-2.4, litigation:-2.2, penalty:-2.0
+};
+
+function sentimentAgent(stock){
+  const scored = stock.headlines.map(h => {
+    const hits = []; let raw = 0;
+    h.toLowerCase().replace(/[^a-z\s]/g,' ').split(/\s+/).forEach(w => {
+      if(LEXICON[w] !== undefined){ raw += LEXICON[w]; hits.push({w, v:LEXICON[w]}); }
+    });
+    const norm = hits.length ? clamp(raw / (hits.length * 2.4), -1, 1) : 0;
+    return { headline:h, score:norm, hits };
+  });
+
+  const mean = scored.reduce((a,b) => a + b.score, 0) / scored.length;
+  const spread = Math.sqrt(scored.reduce((a,b) => a + Math.pow(b.score - mean, 2), 0) / scored.length);
+  const confidence = Math.round(clamp(46 + Math.abs(mean)*44 - spread*26, 22, 92));
+  const allHits = scored.flatMap(s => s.hits);
+
+  return {
+    ok:true, name:'Sentiment',
+    signal: mean > 0.15 ? 'Positive' : mean < -0.15 ? 'Negative' : 'Mixed',
+    score: Math.round(mean * 100), confidence,
+    reason: `${scored.length} headlines scanned and ${allHits.length} tone-bearing terms matched. Mean tone ${mean>=0?'+':''}${mean.toFixed(2)} with headlines disagreeing by ${spread.toFixed(2)}.`,
+    evidence: allHits.slice(0,6).map(h => ({ t:h.w, pos:h.v > 0 }))
+  };
+}
+
+/* --- 3C. Filings: TF-IDF retrieval, partitioned by issuer --- */
+const STOP = new Set(['the','and','for','with','that','this','from','are','was','were','has','have','its','into','over','per','you','what','how','about','their','all','any','out']);
+const tok = s => s.toLowerCase().replace(/[^a-z0-9%\s]/g,' ').split(/\s+/).filter(w => w.length > 2 && !STOP.has(w));
+const DF = (() => {
+  const df = {};
+  FILINGS.forEach(f => new Set(tok(f.text)).forEach(w => df[w] = (df[w]||0) + 1));
+  return df;
+})();
+
+function ragAgent(query, symbol, corpusOnline){
+  if(!corpusOnline){
+    return { ok:false, name:'Filings', signal:'Unavailable', score:0, confidence:0, results:[],
+      reason:'Filing corpus is unreachable. The fundamental leg is dropped rather than answered from memory.' };
+  }
+  const q = tok(query || '');
+  if(!q.length){
+    return { ok:false, name:'Filings', signal:'No query', score:0, confidence:0, results:[],
+      reason:'Search box is empty, so there is nothing to retrieve against. Type what you want checked in the filings.' };
+  }
+
+  const ranked = FILINGS.map(f => {
+    const words = tok(f.text);
+    let qScore = 0; const matched = [];
+    q.forEach(term => {
+      const stem = term.slice(0,5);
+      const tf = words.filter(w => w === term || w.startsWith(stem)).length;
+      if(tf > 0){
+        qScore += tf * Math.log(1 + FILINGS.length / ((DF[term]||0) + 0.5));
+        matched.push(term);
+      }
+    });
+    const onTicker = f.symbol === symbol;
+    return { ...f, qScore, score: qScore + (onTicker ? 2.6 : 0), matched:[...new Set(matched)], onTicker };
+  }).sort((a,b) => b.score - a.score);
+
+  const own = ranked.filter(r => r.onTicker);
+  const top = own[0];
+  if(!top || top.qScore < 1.2){
+    return { ok:false, name:'Filings', signal:'No match', score:0, confidence:0, results:ranked.slice(0,3),
+      reason:`No ${symbol} filing cleared the relevance floor for this question. The fundamental leg is dropped rather than answered from a weak match.` };
+  }
+
+  const runnerUp = own[1] ? own[1].qScore : 0;
+  const gap = top.qScore - runnerUp;
+  const setAside = ranked.filter(r => !r.onTicker && r.qScore > top.qScore).length;
+  const confidence = Math.round(clamp(48 + Math.min(top.qScore,12)*2.8 + gap*3.4, 25, 94));
+
+  return {
+    ok:true, name:'Filings',
+    signal: top.tone > 0.15 ? 'Supportive' : top.tone < -0.15 ? 'Cautionary' : 'Neutral',
+    score: Math.round(top.tone * 100), confidence, top, results:ranked.slice(0,3), setAside,
+    reason: `Ranked all ${FILINGS.length} filings and kept only ${symbol}'s own. ${top.id} scored ${top.qScore.toFixed(2)} against ${runnerUp.toFixed(2)} for its sibling filing${setAside ? `. ${setAside} higher-scoring document${setAside>1?'s were':' was'} set aside for belonging to another issuer` : ''}.`
+  };
+}
+
+/* ============================================================
+   4. SYNTHESIS
+   ============================================================ */
+const PROFILES = {
+  Conservative:{ w:{mom:0.20,sent:0.25,fil:0.55}, cap:5,  buy:66, add:30, trim:-24, exit:-50, floor:58,
+    note:'weights audited filings heaviest and needs high conviction before acting' },
+  Moderate:{     w:{mom:0.35,sent:0.30,fil:0.35}, cap:10, buy:38, add:15, trim:-15, exit:-38, floor:48,
+    note:'balances the tape against the filings' },
+  Aggressive:{   w:{mom:0.55,sent:0.30,fil:0.15}, cap:20, buy:24, add:8,  trim:-10, exit:-30, floor:38,
+    note:'leans on price and volume momentum and accepts thinner evidence' }
+};
+
+function synthesise(mom, sent, rag, profile, feedLive, behaviour){
+  const P = PROFILES[profile];
+  const live = { mom: mom.ok, sent: sent.ok, fil: rag.ok };
+
+  // Step 1: start from profile weights, redistribute anything dropped
+  // proportionally across the agents that did return a signal.
+  const kept = { mom: live.mom ? P.w.mom : 0, sent: live.sent ? P.w.sent : 0, fil: live.fil ? P.w.fil : 0 };
+  const dropped = (live.mom?0:P.w.mom) + (live.sent?0:P.w.sent) + (live.fil?0:P.w.fil);
+  const keptSum = kept.mom + kept.sent + kept.fil;
+  const nominal = {};
+  ['mom','sent','fil'].forEach(k => {
+    nominal[k] = keptSum > 0 ? kept[k] + dropped * (kept[k] / keptSum) : 0;
+  });
+
+  // Step 2: tilt by each agent's own confidence, then renormalise to 1.
+  const conf = { mom: live.mom ? mom.confidence/100 : 0, sent: live.sent ? sent.confidence/100 : 0, fil: live.fil ? rag.confidence/100 : 0 };
+  const tilted = { mom: nominal.mom*conf.mom, sent: nominal.sent*conf.sent, fil: nominal.fil*conf.fil };
+  const tSum = tilted.mom + tilted.sent + tilted.fil;
+  const w = tSum > 0
+    ? { mom:tilted.mom/tSum, sent:tilted.sent/tSum, fil:tilted.fil/tSum }
+    : { mom:0, sent:0, fil:0 };
+
+  const contrib = { mom: w.mom*(mom.score||0), sent: w.sent*(sent.score||0), fil: w.fil*(rag.score||0) };
+  const composite = clamp(contrib.mom + contrib.sent + contrib.fil, -100, 100);
+
+  // Step 3: agreement across the agents that actually reported.
+  const active = [];
+  if(live.mom) active.push({k:'Momentum', s:mom.score, c:mom.confidence});
+  if(live.sent) active.push({k:'Sentiment', s:sent.score, c:sent.confidence});
+  if(live.fil) active.push({k:'Filings', s:rag.score, c:rag.confidence});
+
+  const scores = active.map(a => a.s);
+  const meanS = scores.reduce((a,b)=>a+b,0) / (scores.length||1);
+  const sd = Math.sqrt(scores.reduce((a,b)=>a+Math.pow(b-meanS,2),0) / (scores.length||1));
+  const agreement = active.length > 1 ? clamp(1 - sd/70, 0, 1) : 0.5;
+  const meanConf = active.reduce((a,b)=>a+b.c,0) / (active.length||1);
+
+  const bulls = active.filter(a => a.s > 12);
+  const bears = active.filter(a => a.s < -12);
+  const conflict = bulls.length > 0 && bears.length > 0;
+
+  // Step 4: conviction, then every penalty applied explicitly.
+  let conviction = clamp(16 + Math.abs(composite)*0.34 + agreement*20 + meanConf*0.22, 12, 94);
+  const penalties = [];
+  if(!feedLive){ conviction *= 0.75; penalties.push('price feed offline, −25%'); }
+  if(!live.fil){ conviction *= 0.85; penalties.push('no filing evidence, −15%'); }
+  if(conflict){ conviction *= 0.85; penalties.push('agents in conflict, −15%'); }
+
+  const chaseRate = behaviour.bearishCalls >= 3 ? behaviour.chases / behaviour.bearishCalls : 0;
+  const chasing = chaseRate > 0.4 && composite > 0;
+  if(chasing){ conviction -= 8; penalties.push('this profile has been re-running stocks after cautious calls, −8 points'); }
+  conviction = Math.round(clamp(conviction, 5, 94));
+
+  // Step 5: action gates. The conviction floor applies on both sides.
+  const floorFail = conviction < P.floor;
+  let wouldBe = null;
+  if(composite >= P.buy) wouldBe = 'Accumulate';
+  else if(composite >= P.add) wouldBe = 'Add on weakness';
+  else if(composite <= P.exit) wouldBe = 'Exit position';
+  else if(composite <= P.trim) wouldBe = 'Trim exposure';
+
+  let action, tint, gateText;
+  if(wouldBe && floorFail){
+    action = 'Stand aside'; tint = 'mid';
+    gateText = `The composite of ${fmt(composite)} would have triggered "${wouldBe.toLowerCase()}", but conviction of ${conviction}% sits below the ${P.floor}% floor this profile requires${penalties.length ? ` after ${penalties.join('; ')}` : ''}. The call is to stand aside rather than act on a thin edge.`;
+  } else if(wouldBe === 'Accumulate'){
+    action = 'Accumulate'; tint = 'up';
+    gateText = `Composite of ${fmt(composite)} clears the accumulate gate of ${fmt(P.buy)} for this profile, with conviction of ${conviction}% above the ${P.floor}% floor.`;
+  } else if(wouldBe === 'Add on weakness'){
+    action = 'Add on weakness'; tint = 'up';
+    gateText = `Composite of ${fmt(composite)} clears the add gate of ${fmt(P.add)} but not the accumulate gate of ${fmt(P.buy)}, so the call is to add rather than build a full position.`;
+  } else if(wouldBe === 'Exit position'){
+    action = 'Exit position'; tint = 'down';
+    gateText = `Composite of ${fmt(composite)} breaches the exit gate of ${fmt(P.exit)} for this profile. The evidence is negative enough to close rather than reduce.`;
+  } else if(wouldBe === 'Trim exposure'){
+    action = 'Trim exposure'; tint = 'down';
+    gateText = `Composite of ${fmt(composite)} breaches the trim gate of ${fmt(P.trim)} but stays above the exit gate of ${fmt(P.exit)}, so the call is to reduce rather than close.`;
+  } else {
+    action = 'Hold'; tint = 'mid';
+    gateText = `Composite of ${fmt(composite)} sits inside the neutral band between ${fmt(P.trim)} and ${fmt(P.add)}. Nothing in the evidence justifies a trade either way, so the position is left alone.`;
+  }
+
+  const sizing = (action === 'Accumulate' || action === 'Add on weakness')
+    ? Math.max(0.5, Math.round(P.cap * (conviction/100) * 2) / 2) : 0;
+
+  /* Reasoning chain — what each step actually did */
+  const chain = [];
+  chain.push({ agent:'Momentum',
+    text: mom.ok ? `The tape reads ${mom.signal.toLowerCase()} at ${fmt(mom.score)}. ${mom.reason}` : mom.reason,
+    meta: mom.ok ? `weight ${(w.mom*100).toFixed(0)}% · confidence ${mom.confidence}% · ${mom.ms}ms` : 'weight 0%, redistributed to the surviving agents' });
+  chain.push({ agent:'Sentiment',
+    text: `News tone is ${sent.signal.toLowerCase()} at ${fmt(sent.score)}. ${sent.reason}`,
+    meta: `weight ${(w.sent*100).toFixed(0)}% · confidence ${sent.confidence}% · ${sent.ms}ms` });
+  chain.push({ agent:'Filings',
+    text: rag.ok ? `The closest filing is ${rag.top.id}, ${rag.top.type.toLowerCase()} dated ${rag.top.date}, which reads ${rag.signal.toLowerCase()} at ${fmt(rag.score)}. ${rag.reason}` : rag.reason,
+    meta: rag.ok ? `weight ${(w.fil*100).toFixed(0)}% · confidence ${rag.confidence}% · ${rag.ms}ms` : 'weight 0%, redistributed to the surviving agents' });
+  chain.push({ agent:'Weighting',
+    text: `Profile weights start at ${(P.w.mom*100).toFixed(0)}/${(P.w.sent*100).toFixed(0)}/${(P.w.fil*100).toFixed(0)} across momentum, sentiment and filings. They are then tilted by how confident each agent was and renormalised, landing at ${(w.mom*100).toFixed(0)}/${(w.sent*100).toFixed(0)}/${(w.fil*100).toFixed(0)}.`,
+    meta: `${profile.toLowerCase()} profile — ${P.note}` });
+  chain.push({ agent:'Blend',
+    text: `Weighted composite is ${fmt(composite)} on a −100 to +100 scale. ${active.length} agent${active.length>1?'s':''} reported, agreeing ${(agreement*100).toFixed(0)}%${conflict ? `, and they point in opposite directions — ${bulls.map(b=>b.k).join(' and ')} positive against ${bears.map(b=>b.k).join(' and ')} negative` : ''}.`,
+    meta: penalties.length ? `conviction ${conviction}% after ${penalties.join('; ')}` : `conviction ${conviction}%, no penalties applied` });
+  chain.push({ agent:'Decision',
+    text: gateText + (sizing ? ` Position is sized at ${sizing}% of the portfolio against this profile's ${P.cap}% cap.` : ''),
+    meta: feedLive ? 'built on the current tape' : `built on the ${SNAPSHOT_TIME} snapshot` });
+
+  return { action, tint, composite, conviction, sizing, weights:w, nominal, contrib,
+           agreement, conflict, bulls, bears, chasing, penalties, cap:P.cap, floor:P.floor, chain, active };
+}
+
+const fmt = n => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(Number.isInteger(n) ? 0 : 1)}`;
+
+/* ============================================================
+   5. PORTFOLIO
+   ============================================================ */
+const HOLDINGS = [
+  { symbol:'INFY', qty:40, avg:1418.00 },
+  { symbol:'HDFCBANK', qty:25, avg:1522.40 },
+  { symbol:'RELIANCE', qty:30, avg:1385.00 },
+  { symbol:'TATAMOTORS', qty:60, avg:781.50 },
+  { symbol:'LT', qty:12, avg:3402.00 },
+  { symbol:'ITC', qty:150, avg:402.10 }
+];
+const CASH = 42800;
+
+function portfolioState(feedLive){
+  const rows = HOLDINGS.map(h => {
+    const s = MARKET.find(m => m.symbol === h.symbol);
+    const px = feedLive ? s.price : s.prevClose;
+    const val = px * h.qty, cost = h.avg * h.qty;
+    return { ...h, name:s.name, px, val, pnl:val-cost, pnlPct:((val-cost)/cost)*100 };
+  });
+  const equity = rows.reduce((a,r) => a + r.val, 0);
+  const total = equity + CASH;
+  rows.forEach(r => r.weight = (r.val/total)*100);
+
+  // Herfindahl over every sleeve including cash, then normalised so that
+  // an equal-weight book reads 0 and a single-sleeve book reads 100.
+  const shares = rows.map(r => r.val/total).concat([CASH/total]);
+  const n = shares.length;
+  const hhi = shares.reduce((a,s) => a + s*s, 0);
+  const concentration = Math.round(clamp(((hhi - 1/n) / (1 - 1/n)) * 100, 0, 100));
+  return { rows, equity, total, concentration, hhi };
+}
+
+/* ============================================================
+   6. SESSION STATE (persisted where the browser allows it)
+   ============================================================ */
+const store = {
+  read(key, fallback){
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  },
+  write(key, value){
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch(e){ return false; }
+  }
+};
+
+const S = {
+  symbol:'INFY', profile:'Moderate', feedLive:true, filingsOnline:true,
+  query:'revenue growth and operating margin outlook',
+  phase:'idle', lanes:{mom:'idle',sent:'idle',fil:'idle'},
+  parts:{mom:null,sent:null,fil:null},
+  out:null, syn:null,
+  log: store.read('nirnay.log', []),
+  behaviour: store.read('nirnay.behaviour', { runs:0, bearishCalls:0, chases:0 }),
+  lastCall: store.read('nirnay.lastCall', {}),
+  wallMs:0, seqMs:0,
+  scan:null, scanOpen:false
+};
+let RUN_ID = 0;
+
+/* ============================================================
+   7. RENDERING
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const inr  = n => '₹' + n.toLocaleString('en-IN',{maximumFractionDigits:2, minimumFractionDigits:2});
+const inr0 = n => '₹' + n.toLocaleString('en-IN',{maximumFractionDigits:0});
+const lakh = n => (n/100000).toFixed(1) + ' L';
+const tintOf = t => t === 'up' ? 'b' : t === 'down' ? 's' : 'n';
+
+function sparkPath(data){
+  const w = 210, h = 26;
+  const min = Math.min(...data), max = Math.max(...data), r = (max-min) || 1;
+  return data.map((d,i) => `${(i/(data.length-1))*w},${h - ((d-min)/r)*(h-6) - 3}`).join(' ');
+}
+
+function renderStrip(){
+  $('strip').innerHTML = MARKET.map(s => {
+    const c = ((s.price - s.prevClose)/s.prevClose)*100;
+    const col = c >= 0 ? 'var(--bull)' : 'var(--bear)';
+    return `<button class="tile" data-sym="${s.symbol}" aria-pressed="${s.symbol===S.symbol}">
+      <span class="tile-h"><strong>${s.symbol}</strong><em>${esc(s.sector)}</em></span>
+      <div class="price num">${inr(s.price)}<span class="chg ${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</span></div>
+      <div class="tile-meta"><span>Vol <b class="num">${lakh(s.volume)}</b></span><span>Avg <b class="num">${lakh(s.avgVolume)}</b></span></div>
+      <svg class="spark" viewBox="0 0 210 26" width="100%" height="26" aria-hidden="true">
+        <polyline points="${sparkPath(s.trend)}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>
+      </svg>
+    </button>`;
+  }).join('');
+}
+
+function renderBanner(){
+  const msgs = [];
+  if(!S.feedLive) msgs.push(`Price feed is disconnected. The desk has fallen back to the ${SNAPSHOT_TIME} snapshot, moved the momentum agent's weight onto the surviving agents, and cut synthesis conviction by 25%.`);
+  if(!S.filingsOnline) msgs.push('Filing corpus is unreachable. The fundamental leg is dropped rather than answered from memory, and conviction is cut a further 15%.');
+  $('banner').innerHTML = msgs.length
+    ? `<div class="banner"><b>Degraded</b><p>${msgs.map(esc).join(' ')}</p></div>` : '';
+}
+
+function renderPipeline(){
+  const p = S.parts;
+  const label = (k, v) => v ? (v.ok ? v.short : v.shortFail) : '—';
+  const lanes = [
+    { key:'mom',  y:34,  name:'Momentum',  val: p.mom  ? (p.mom.ok  ? `${p.mom.signal} ${fmt(p.mom.score)}` : 'unavailable') : 'idle', ms:p.mom&&p.mom.ms },
+    { key:'sent', y:86,  name:'Sentiment', val: p.sent ? `${p.sent.signal} ${fmt(p.sent.score)}` : 'idle', ms:p.sent&&p.sent.ms },
+    { key:'fil',  y:138, name:'Filings',   val: p.fil  ? (p.fil.ok  ? `${p.fil.top.id} ${fmt(p.fil.score)}` : 'no evidence') : 'idle', ms:p.fil&&p.fil.ms }
+  ];
+  const svg = `<svg class="pipe" viewBox="0 0 720 176" role="img" aria-label="Three agents running in parallel into a synthesis node">
+    ${lanes.map(l => {
+      const st = S.lanes[l.key];
+      const stroke = st === 'done' ? 'var(--beam)' : 'var(--line)';
+      return `<g>
+        <rect x="1" y="${l.y-18}" width="212" height="38" rx="8" class="node${st==='done'?' on':''}"/>
+        <text x="14" y="${l.y-3}" class="plabel">${l.name}</text>
+        <text x="14" y="${l.y+13}" class="pval">${esc(l.val)}</text>
+        ${l.ms ? `<text x="200" y="${l.y+13}" class="pms" text-anchor="end">${l.ms}ms</text>` : ''}
+        <path d="M 215 ${l.y} C 330 ${l.y}, 380 88, 494 88" class="lane ${st==='run'?'run':st==='done'?'done':''}" stroke="${stroke}"/>
+      </g>`;
+    }).join('')}
+    <rect x="496" y="52" width="222" height="72" rx="10" class="node${S.syn?' on':''}"/>
+    <text x="512" y="76" class="plabel">Synthesis</text>
+    <text x="512" y="98" class="pval" style="font-size:15px">${S.syn ? esc(S.syn.action) : (S.phase==='running'?'waiting on agents':'idle')}</text>
+    <text x="512" y="114" class="plabel">${S.syn ? `conviction ${S.syn.conviction}%` : ''}</text>
+  </svg>`;
+  $('pipe').innerHTML = svg;
+  const stock = MARKET.find(s => s.symbol === S.symbol);
+  $('pipeSub').textContent = `${stock.name} — three agents run at once over the tape, the news, and the filings.`;
+}
+
+function agentCard(title, tag, res){
+  if(!res){
+    const body = S.phase === 'running' ? 'Scoring…' : 'Idle. Press run analysis.';
+    return `<div class="agent"><div class="agent-h"><strong>${title}</strong><span>${tag}</span></div><p class="waiting">${body}</p></div>`;
+  }
+  const cls = res.score > 15 ? 'up' : res.score < -15 ? 'down' : 'mid';
+  const verdict = res.ok ? `${res.signal} ${fmt(res.score)}` : res.signal;
+  const chips = (res.ok && res.name === 'Filings')
+    ? res.top.matched.map(m => `<span class="chip pos">${esc(m)}</span>`).join('')
+    : (res.evidence || []).map(e => `<span class="chip ${e.pos?'pos':'neg'}">${esc(e.t)}</span>`).join('');
+  return `<div class="agent">
+    <div class="agent-h"><strong>${title}</strong><span>${tag}</span></div>
+    <p class="verdict ${res.ok?cls:'mid'}">${esc(verdict)}</p>
+    <div class="bar"><i style="width:${res.confidence}%"></i></div>
+    <p class="sub">confidence ${res.confidence}%${res.ms?` · ${res.ms}ms`:''}</p>
+    <p class="sub">${esc(res.reason)}</p>
+    <div class="chips">${chips}</div>
+  </div>`;
+}
+
+function renderAgents(){
+  $('agents').innerHTML =
+    agentCard('Momentum', 'price and volume', S.parts.mom) +
+    agentCard('Sentiment', 'news headlines', S.parts.sent) +
+    agentCard('Filings', 'retrieval over disclosures', S.parts.fil);
+  renderSource();
+}
+
+function highlight(text, terms){
+  if(!terms || !terms.length) return esc(text);
+  const stems = terms.map(t => t.slice(0,5).toLowerCase()).filter(Boolean);
+  return text.split(/(\s+)/).map(part => {
+    const bare = part.toLowerCase().replace(/[^a-z0-9%]/g,'');
+    return (bare && stems.some(st => bare.startsWith(st))) ? `<mark>${esc(part)}</mark>` : esc(part);
+  }).join('');
+}
+
+function renderSource(){
+  const r = S.parts.fil;
+  if(!r || !r.ok){ $('source').innerHTML = ''; return; }
+  $('source').innerHTML = `<div class="source">
+    <div class="cite"><b>${esc(r.top.id)}</b><span>${esc(r.top.type)}</span><span>${esc(r.top.venue)}</span><span>${esc(r.top.date)}</span></div>
+    <blockquote>${highlight(r.top.text, r.top.matched)}</blockquote>
+  </div>`;
+}
+
+function renderSynth(){
+  const y = S.syn;
+  if(!y){ $('synth').innerHTML = ''; return; }
+  const P = PROFILES[S.profile];
+  const conflictBox = y.conflict ? `<div class="alert"><b>Agents disagree.</b>
+    ${esc(y.bulls.map(b=>b.k).join(' and '))} read this positively while ${esc(y.bears.map(b=>b.k).join(' and '))} read it negatively.
+    The blend is reported anyway, but conviction has been cut 15% and the disagreement is left visible rather than averaged away.</div>` : '';
+  const chaseBox = y.chasing ? `<div class="alert"><b>Behaviour check.</b>
+    You have re-run stocks after a cautious call ${S.behaviour.chases} out of ${S.behaviour.bearishCalls} times this session.
+    Conviction on this bullish call has been cut 8 points against that history.</div>` : '';
+
+  const wcell = (label, k, score) => `<div class="w">
+    <small>${label}</small>
+    <b class="num">${(y.weights[k]*100).toFixed(0)}%</b>
+    <div class="contrib num">${(y.nominal[k]*100).toFixed(0)}% before confidence tilt · adds ${fmt(y.contrib[k])}</div>
+  </div>`;
+
+  $('synth').innerHTML = `<div class="card">
+    <h2>Synthesis and allocation call</h2>
+    <p>${S.profile} profile — ${esc(P.note)}.</p>
+    <div class="rec-head">
+      <h3 class="action ${y.tint}">${esc(y.action)}</h3>
+      <div class="rec-meta">
+        <div><small>Conviction</small><b class="num">${y.conviction}%</b></div>
+        <div><small>Composite</small><b class="num ${y.tint}">${fmt(y.composite)}</b></div>
+        <div><small>Size</small><b class="num">${y.sizing ? y.sizing + '%' : '—'}</b></div>
+      </div>
+    </div>
+    ${conflictBox}${chaseBox}
+    <div class="weights">
+      ${wcell('Momentum weight','mom')}
+      ${wcell('Sentiment weight','sent')}
+      ${wcell('Filings weight','fil')}
+    </div>
+    <ul class="chain">
+      ${y.chain.map((c,i) => `<li><span class="idx">${i+1}</span><div>
+        <p><strong>${esc(c.agent)}: </strong>${esc(c.text)}</p><em>${esc(c.meta)}</em>
+      </div></li>`).join('')}
+    </ul>
+  </div>`;
+}
+
+function scoreLog(){
+  // A call is scored only if it was directional. Hold and stand aside are
+  // deliberately not scored — there is no position to be right or wrong about.
+  let hits = 0, scored = 0;
+  S.log.forEach(l => {
+    const s = MARKET.find(m => m.symbol === l.symbol);
+    if(!s) return;
+    const bull = l.action === 'Accumulate' || l.action === 'Add on weakness';
+    const bear = l.action === 'Trim exposure' || l.action === 'Exit position';
+    if(!bull && !bear) return;
+    scored++;
+    if((bull && s.fwd30 > 0) || (bear && s.fwd30 < 0)) hits++;
+  });
+  return { hits, scored };
+}
+
+function renderMetrics(){
+  const acc = scoreLog();
+  const conflicts = S.log.filter(l => l.conflict).length;
+  const pf = portfolioState(S.feedLive);
+  const accText = acc.scored ? `${Math.round((acc.hits/acc.scored)*100)}%` : '—';
+
+  $('metrics').innerHTML = `
+    <div class="metric"><small>Wall clock for the last run, all three agents in parallel</small>
+      <b class="num">${S.wallMs || '—'}${S.wallMs?'ms':''}</b><i>${S.seqMs ? `${S.seqMs}ms if run one by one` : 'not run yet'}</i></div>
+    <div class="metric"><small>Directional calls that matched the 30-day forward return</small>
+      <b class="num">${accText}</b><i>${acc.scored ? `${acc.hits} of ${acc.scored} scored` : 'no directional calls yet'}</i></div>
+    <div class="metric"><small>Portfolio concentration, 0 is even and 100 is a single holding</small>
+      <b class="num">${pf.concentration}</b><i>7 sleeves including cash</i></div>`;
+
+  $('metricNote').textContent = `${S.behaviour.runs} analyses this profile · ${conflicts} ended with the agents in conflict · hold and stand-aside calls are left unscored because there was no position to be right about.`;
+}
+
+function renderPortfolio(){
+  const pf = portfolioState(S.feedLive);
+  const pnl = pf.rows.reduce((a,r) => a + r.pnl, 0);
+  $('pmetrics').innerHTML = `
+    <div class="metric"><small>Total value</small><b class="num">${inr0(pf.total)}</b><i>including cash</i></div>
+    <div class="metric"><small>Unrealised P&amp;L</small><b class="num ${pnl>=0?'up':'down'}">${inr0(pnl)}</b><i>across 6 holdings</i></div>
+    <div class="metric"><small>Cash</small><b class="num">${inr0(CASH)}</b><i>${((CASH/pf.total)*100).toFixed(1)}% of book</i></div>`;
+  $('ptable').innerHTML = `
+    <thead><tr><th>Holding</th><th>Qty</th><th>Weight</th><th>P&amp;L</th></tr></thead>
+    <tbody>${pf.rows.map(h => `<tr class="pick" data-sym="${h.symbol}">
+      <td><strong>${h.symbol}</strong><div style="font-size:11px;color:var(--dimmer)">${esc(h.name)}</div></td>
+      <td class="num">${h.qty}</td><td class="num">${h.weight.toFixed(1)}%</td>
+      <td class="num ${h.pnlPct>=0?'up':'down'}">${h.pnlPct>=0?'+':''}${h.pnlPct.toFixed(1)}%</td>
+    </tr>`).join('')}</tbody>`;
+}
+
+function renderScan(){
+  if(!S.scanOpen || !S.scan){ $('scan').innerHTML = ''; return; }
+  $('scan').innerHTML = `<div class="card">
+    <h2>Universe scan</h2>
+    <p>All ${MARKET.length} names scored under the ${S.profile.toLowerCase()} profile in ${S.scan.ms}ms.</p>
+    <table><thead><tr><th>Stock</th><th>Composite</th><th>Call</th><th>Conviction</th></tr></thead>
+    <tbody>${S.scan.rows.map(r => `<tr class="pick" data-sym="${r.symbol}">
+      <td><strong>${r.symbol}</strong></td>
+      <td class="num ${r.tint}">${fmt(r.composite)}</td>
+      <td><span class="badge ${tintOf(r.tint)}">${esc(r.action)}</span></td>
+      <td class="num">${r.conviction}%</td></tr>`).join('')}</tbody></table>
+  </div>`;
+}
+
+function renderLog(){
+  if(!S.log.length){ $('logCard').innerHTML = ''; return; }
+  $('logCard').innerHTML = `<div class="card">
+    <h2>Session log</h2>
+    <p>Every call this desk has made, kept across reloads.</p>
+    ${S.log.slice(0,6).map(l => `<div class="wl">
+      <div><strong>${l.symbol}</strong>
+        <span style="margin-left:8px;font-size:11px;color:var(--dim)">${esc(l.t)} · ${esc(l.profile)}${l.degraded?' · degraded':''}${l.conflict?' · conflict':''}</span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="badge ${tintOf(l.tint)}">${esc(l.action)}</span>
+        <span class="num" style="font-size:12px">${l.conviction}%</span></div>
+    </div>`).join('')}
+    <button class="run ghost" id="btnClear" style="margin-top:12px">Clear log and behaviour</button>
+  </div>`;
+}
+
+function renderAll(){
+  renderStrip(); renderBanner(); renderPipeline(); renderAgents();
+  renderSynth(); renderMetrics(); renderPortfolio(); renderScan(); renderLog();
+  $('dotFeed').className = 'dot' + (S.feedLive ? '' : ' off');
+  $('lblFeed').textContent = S.feedLive ? 'Price feed live' : 'Price feed offline';
+  $('btnFeed').textContent = S.feedLive ? 'Disconnect' : 'Reconnect';
+  $('dotFil').className = 'dot' + (S.filingsOnline ? '' : ' off');
+  $('lblFil').textContent = S.filingsOnline ? 'Filing corpus online' : 'Filing corpus offline';
+  $('btnFil').textContent = S.filingsOnline ? 'Take offline' : 'Restore';
+  $('btnRun').disabled = S.phase === 'running';
+  $('btnRun').textContent = S.phase === 'running' ? 'Analysing…' : 'Run analysis';
+  $('btnScan').textContent = S.scanOpen ? 'Hide scan' : 'Scan universe';
+}
+
+/* ============================================================
+   8. ORCHESTRATION — the three agents genuinely run concurrently
+   ============================================================ */
+async function task(lane, fn, runId){
+  const t0 = performance.now();
+  await sleep(140 + Math.random()*320);      // stands in for network and model latency
+  const res = fn();
+  res.ms = Math.round(performance.now() - t0);
+  if(runId !== RUN_ID) return res;            // a newer run superseded this one
+  S.lanes[lane] = 'done';
+  S.parts[lane] = res;
+  renderPipeline(); renderAgents();
+  return res;
+}
+
+async function run(){
+  const runId = ++RUN_ID;
+  S.query = $('query').value;
+  S.phase = 'running';
+  S.lanes = { mom:'run', sent:'run', fil:'run' };
+  S.parts = { mom:null, sent:null, fil:null };
+  S.syn = null;
+  renderAll();
+
+  const stock = MARKET.find(s => s.symbol === S.symbol);
+  const t0 = performance.now();
+  const [mom, sent, rag] = await Promise.all([
+    task('mom',  () => momentumAgent(stock, S.feedLive), runId),
+    task('sent', () => sentimentAgent(stock), runId),
+    task('fil',  () => ragAgent(S.query, S.symbol, S.filingsOnline), runId)
+  ]);
+  if(runId !== RUN_ID) return;
+
+  S.wallMs = Math.round(performance.now() - t0);
+  S.seqMs = mom.ms + sent.ms + rag.ms;
+  S.phase = 'done';
+  S.syn = synthesise(mom, sent, rag, S.profile, S.feedLive, S.behaviour);
+
+  // Behavioural history: was this stock re-run after a cautious call on it?
+  const prev = S.lastCall[S.symbol];
+  const prevCautious = prev && ['Trim exposure','Exit position','Stand aside'].includes(prev);
+  if(prevCautious) S.behaviour.chases++;
+  if(['Trim exposure','Exit position','Stand aside'].includes(S.syn.action)) S.behaviour.bearishCalls++;
+  S.behaviour.runs++;
+  S.lastCall[S.symbol] = S.syn.action;
+
+  S.log.unshift({
+    t: new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),
+    symbol: S.symbol, profile: S.profile, action: S.syn.action, tint: S.syn.tint,
+    composite: Math.round(S.syn.composite), conviction: S.syn.conviction,
+    conflict: S.syn.conflict, degraded: !S.feedLive || !S.filingsOnline
+  });
+  S.log = S.log.slice(0, 25);
+
+  store.write('nirnay.log', S.log);
+  store.write('nirnay.behaviour', S.behaviour);
+  store.write('nirnay.lastCall', S.lastCall);
+
+  renderAll();
+}
+
+function resynth(){
+  const { mom, sent, fil } = S.parts;
+  if(!mom || !sent || !fil) return;
+  S.syn = synthesise(mom, sent, fil, S.profile, S.feedLive, S.behaviour);
+ 
